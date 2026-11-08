@@ -80,13 +80,18 @@ object Adb {
     private fun m(ctx: Context): AdbMgr =
         mgr ?: synchronized(this) { mgr ?: AdbMgr(ctx.applicationContext).also { mgr = it } }
 
-    fun connected(ctx: Context): Boolean = try {
+    // koneksi ADB milik aplikasi sendiri
+    fun adbConnected(ctx: Context): Boolean = try {
         m(ctx).isConnected
     } catch (e: Throwable) {
         false
     }
 
+    // siap dipakai lewat Shizuku ATAU ADB
+    fun connected(ctx: Context): Boolean = Shz.ready() || adbConnected(ctx)
+
     fun connect(ctx: Context): Boolean {
+        if (Shz.ready()) return true
         try {
             m(ctx).autoConnect(ctx.applicationContext, 6000L)
         } catch (e: Throwable) {
@@ -101,15 +106,19 @@ object Adb {
         false
     }
 
-    fun run(ctx: Context, cmd: String): String = try {
-        val s = m(ctx).openStream("shell:$cmd")
-        try {
-            s.openInputStream().bufferedReader().readText()
-        } finally {
-            s.close()
+    // Shizuku diprioritaskan, ADB sebagai cadangan
+    fun run(ctx: Context, cmd: String): String {
+        if (Shz.ready()) return Shz.run(cmd)
+        return try {
+            val s = m(ctx).openStream("shell:$cmd")
+            try {
+                s.openInputStream().bufferedReader().readText()
+            } finally {
+                s.close()
+            }
+        } catch (e: Throwable) {
+            ""
         }
-    } catch (e: Throwable) {
-        ""
     }
 
     fun startPairDiscovery(ctx: Context) {
