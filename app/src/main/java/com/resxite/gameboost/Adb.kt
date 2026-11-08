@@ -6,6 +6,7 @@ import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import io.github.muntashirakon.adb.AbsAdbConnectionManager
 import java.io.File
+import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.PrivateKey
@@ -14,34 +15,23 @@ import java.security.cert.Certificate
 import java.security.cert.CertificateFactory
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Date
-import java.util.Random
-import sun.security.x509.*
+import org.bouncycastle.asn1.x500.X500Name
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 
 private fun gen(): Pair<PrivateKey, Certificate> {
     val g = KeyPairGenerator.getInstance("RSA")
     g.initialize(2048, SecureRandom.getInstance("SHA1PRNG"))
     val kp = g.generateKeyPair()
-    val pub = kp.public
-    val priv = kp.private
-    val algo = "SHA512withRSA"
-    val ext = CertificateExtensions()
-    ext.set("SubjectKeyIdentifier", SubjectKeyIdentifierExtension(KeyIdentifier(pub).identifier))
     val name = X500Name("CN=GameBooster")
     val from = Date()
     val to = Date(System.currentTimeMillis() + 3650L * 86400000L)
-    ext.set("PrivateKeyUsage", PrivateKeyUsageExtension(from, to))
-    val info = X509CertInfo()
-    info.set("version", CertificateVersion(2))
-    info.set("serialNumber", CertificateSerialNumber(Random().nextInt() and Int.MAX_VALUE))
-    info.set("algorithmID", CertificateAlgorithmId(AlgorithmId.get(algo)))
-    info.set("subject", CertificateSubjectName(name))
-    info.set("key", CertificateX509Key(pub))
-    info.set("validity", CertificateValidity(from, to))
-    info.set("issuer", CertificateIssuerName(name))
-    info.set("extensions", ext)
-    val c = X509CertImpl(info)
-    c.sign(priv, algo)
-    return Pair(priv, c)
+    val holder = JcaX509v3CertificateBuilder(
+        name, BigInteger.valueOf(System.currentTimeMillis()), from, to, name, kp.public
+    ).build(JcaContentSignerBuilder("SHA512withRSA").build(kp.private))
+    val cert = JcaX509CertificateConverter().getCertificate(holder)
+    return Pair(kp.private, cert)
 }
 
 class AdbMgr(ctx: Context) : AbsAdbConnectionManager() {
