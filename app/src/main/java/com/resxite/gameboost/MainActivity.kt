@@ -88,7 +88,7 @@ fun Root(minPx: Int) {
             picker -> Picker(
                 ac,
                 { pkg ->
-                    Store.setGame(pkg, 720)
+                    Store.setGame(pkg, 1080)
                     games = Store.games()
                     picker = false
                 },
@@ -275,8 +275,8 @@ private fun GameTab(
                 Text("Belum ada aplikasi. Ketuk Tambah aplikasi untuk memilih game.", color = Muted, fontSize = 14.sp)
             }
         }
-        games.forEach { (pkg, dpi) ->
-            GameCard(pkg, dpi, minPx, ac, ready) {
+        games.forEach { (pkg, dp) ->
+            GameCard(pkg, dp, minPx, ac, ready) {
                 Store.removeGame(pkg)
                 onChanged()
             }
@@ -333,7 +333,7 @@ private fun SettingsTab(ac: Color, idx: Int, onTheme: (Int) -> Unit) {
 
         PanelBox {
             Text("Darurat", color = Txt, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text("Kembalikan density ke nilai asli HP kalau tampilan masih terlalu besar.", color = Muted, fontSize = 13.sp)
+            Text("Kembalikan density ke nilai asli HP kalau tampilan masih terlalu kecil atau besar.", color = Muted, fontSize = 13.sp)
             Big("Pulihkan density ke normal") {
                 Thread {
                     if (!Adb.connected(ctx)) Adb.connect(ctx)
@@ -347,7 +347,7 @@ private fun SettingsTab(ac: Color, idx: Int, onTheme: (Int) -> Unit) {
 
 @Composable
 private fun GameCard(
-    pkg: String, dpi: Int, minPx: Int, ac: Color, ready: Boolean, onRemove: () -> Unit
+    pkg: String, dp: Int, minPx: Int, ac: Color, ready: Boolean, onRemove: () -> Unit
 ) {
     val ctx = LocalContext.current
     val pm = ctx.packageManager
@@ -357,8 +357,8 @@ private fun GameCard(
     val icon = remember(pkg) {
         try { pm.getApplicationIcon(pkg).toBitmap(96, 96).asImageBitmap() } catch (e: Exception) { null }
     }
-    var v by remember(pkg) { mutableIntStateOf(dpi) }
-    val wdp = (minPx * 160f / v).roundToInt()
+    var v by remember(pkg) { mutableIntStateOf(dp.coerceIn(320, 1440)) }
+    val dens = (minPx * 160f / v).roundToInt()
 
     PanelBox {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -367,7 +367,7 @@ private fun GameCard(
             }
             Column(Modifier.weight(1f)) {
                 Text(label, color = Txt, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                Text("Density $v · lebar $wdp dp", color = ac, fontSize = 13.sp)
+                Text("Lebar terkecil $v dp · density $dens", color = ac, fontSize = 13.sp)
             }
             TextButton(onClick = onRemove) { Text("Hapus", color = Muted, fontSize = 13.sp) }
         }
@@ -380,11 +380,15 @@ private fun GameCard(
                 thumbColor = Txt, activeTrackColor = ac, inactiveTrackColor = Color(0xFF1E2227)
             )
         )
+        Text(
+            "Makin besar angkanya, tampilan makin kecil. Hanya aktif saat game berjalan.",
+            color = Muted, fontSize = 12.sp
+        )
         Big(if (ready) "Main" else "Sambungkan dulu di tab Koneksi", enabled = ready) {
             Store.setGame(pkg, v)
             ctx.startForegroundService(
                 Intent(ctx, BoostService::class.java).setAction("boost")
-                    .putExtra("pkg", pkg).putExtra("dpi", v)
+                    .putExtra("pkg", pkg).putExtra("dpi", dens)
             )
         }
     }
